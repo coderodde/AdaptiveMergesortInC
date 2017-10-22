@@ -1,4 +1,5 @@
-#include "AdaptiveMergesort.h"
+#include "net/coderodde/util/AdaptiveMergesort.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -10,8 +11,8 @@
 typedef struct interval_t {
     void* begin;
     void* end;
-    interval_t* prev;
-    interval_t* next;
+    struct interval_t* prev;
+    struct interval_t* next;
 } interval_t;
 
 /*************************************************************************
@@ -25,7 +26,7 @@ typedef struct run_t {
 /********************************************
 * Allocates and initializes a new interval. *
 ********************************************/
-static interval_t_alloc(void* begin, void* end)
+static interval_t* interval_t_alloc(void* begin, void* end)
 {
     interval_t* result = malloc(sizeof *result);
     
@@ -56,6 +57,7 @@ static run_t* run_t_alloc(void* begin, void* end)
     run->last_interval  = interval;
     interval->prev = NULL;
     interval->next = NULL;
+    return run;
 }
 
 /************************************************************
@@ -110,7 +112,7 @@ static run_queue_t* run_queue_t_alloc(size_t capacity)
     run_queue->head = 0;
     run_queue->tail = 0;
     run_queue->size = 0;
-    run_queue->run_array = malloc((sizeof *run_array) * capacity);
+    run_queue->run_array = malloc((sizeof *run_queue->run_array) * capacity);
     
     return run_queue;
 }
@@ -185,12 +187,12 @@ typedef struct run_queue_builder_t {
 * Initializes the run queue builder. *
 *************************************/
 static run_queue_builder_t* run_queue_builder_t_alloc(
-                                void* base,
-                                size_t element_size,
-                                size_t element_count,
-                                int (*cmp)(const void*, const void*))
+                                                      void* base,
+                                                      size_t element_size,
+                                                      size_t element_count,
+                                                      int (*cmp)(const void*, const void*))
 {
-    run_queue_builder_t* run_queue_builder = malloc(sizeof *run_queue_builder));
+    run_queue_builder_t* run_queue_builder = malloc(sizeof *run_queue_builder);
     
     if (!run_queue_builder)
     {
@@ -199,13 +201,13 @@ static run_queue_builder_t* run_queue_builder_t_alloc(
     
     run_queue_builder->aux = malloc(element_size);
     
-    if (!run_queue->aux)
+    if (!run_queue_builder->aux)
     {
         abort();
     }
     
     run_queue_builder->run_queue = run_queue_t_alloc(element_count);
-    run_queue_buillder->base = base;
+    run_queue_builder->base = base;
     run_queue_builder->element_size = element_size;
     run_queue_builder->element_count = element_count;
     run_queue_builder->left = base;
@@ -245,32 +247,37 @@ static void run_queue_builder_t_scan_ascending_run(
         if (cmp(head - element_size, head) <= 0)
         {
             run_queue_t_add_to_last_run(run_queue,
-                                       (right - head) * element_size);
+                                        (right - head) * element_size);
         }
         else
         {
             run = run_t_alloc(head, right);
-            run_queue_t_enqueue(run);
+            run_queue_t_enqueue(run_queue, run);
         }
     }
     else
     {
         run = run_t_alloc(head, right);
-        run_queue_t_enqueue(run);
+        run_queue_t_enqueue(run_queue, run);
     }
     
-    run_queue_builder->previous_run_was_descending = false;
+    run_queue_builder->previous_run_was_descending = 0;
     run_queue_builder->left = left;
     run_queue_builder->right = right;
+    run_queue_builder->head = head;
 }
 
+/**************************************************************************
+* Reverses a strictly descending run into an ascending one. Strictness is *
+* required in order to keep the entire sorting algorithm stable.          *
+**************************************************************************/
 static void run_queue_builder_t_reverse_run(
-                            run_queue_builder_t* run_queue_builder,
-                            run_t* run)
+                                        run_queue_builder_t* run_queue_builder,
+                                        run_t* run)
 {
     size_t element_size = run_queue_builder->element_size;
-    void* end = run->end - element_size;
-    void* begin = run->begin;
+    void* end = run->first_interval->end - element_size;
+    void* begin = run->first_interval->begin;
     void* aux = run_queue_builder->base;
     
     while (begin < end)
@@ -287,8 +294,8 @@ static void run_queue_builder_t_reverse_run(
 /*********************************************
 * Scans a descending run in the input array. *
 *********************************************/
-static void run_queue_builder_t_scan_ascending_run(
-                                    run_queue_builder_t* run_queue_builder)
+static void run_queue_builder_t_scan_descending_run(
+            run_queue_builder_t* run_queue_builder)
 {
     void* left  = run_queue_builder->left;
     void* right = run_queue_builder->right;
@@ -317,35 +324,58 @@ static void run_queue_builder_t_scan_ascending_run(
         else
         {
             run = run_t_alloc(head, right);
-            run_queue_builder_t_reverse_run(run, element_size);
-            run_queue_t_enqueue(run);
+            run_queue_builder_t_reverse_run(run_queue_builder, run);
+            run_queue_t_enqueue(run_queue, run);
         }
     }
     else
     {
         run = run_t_alloc(head, right);
-        run_queue_builder_t_reverse_run(run, element_size);
-        run_queue_t_enqueue(run);
+        run_queue_builder_t_reverse_run(run_queue_builder, run);
+        run_queue_t_enqueue(run_queue, run);
     }
     
-    run_queue_builder->previous_run_was_descending = true;
+    run_queue_builder->previous_run_was_descending = 1;
     run_queue_builder->left = left;
     run_queue_builder->right = right;
+    run_queue_builder->head = head;
+}
+
+void super(run_queue_t* run_queue, size_t element_size)
+{
+    run_t* run;
+    interval_t* interval;
+    void* shit;
+    
+    while (run_queue_t_size(run_queue) > 0)
+    {
+        run = run_queue_t_dequeue(run_queue);
+        interval = run->first_interval;
+        
+        for (shit = interval->begin; shit < interval->end; shit += element_size)
+        {
+            printf("%d ", *(int*)(shit));
+        }
+        
+        puts("");
+    }
 }
 
 /***********************************************************
 * This function is responsible for building the run queue. *
 ***********************************************************/
-static run_queue* run_queue_builder_t_run(
-                  run_queue_builder_t* run_queue_builder)
+static run_queue_t* run_queue_builder_t_run(
+                    run_queue_builder_t* run_queue_builder)
 {
     int (*cmp)(const void*, const void*) = run_queue_builder->cmp;
+    size_t element_size = run_queue_builder->element_size;
+    void* last = run_queue_builder->last;
     
     while (run_queue_builder->left != run_queue_builder->last)
     {
         run_queue_builder->head = run_queue_builder->left;
         
-        if (cmp(*run_queue_bulder->left, *run_queue_builder->right) <= 0) {
+        if (cmp(run_queue_builder->left, run_queue_builder->right) <= 0) {
             run_queue_builder->left = run_queue_builder->right;
             run_queue_builder->right += element_size;
             run_queue_builder_t_scan_ascending_run(run_queue_builder);
@@ -366,7 +396,7 @@ static run_queue* run_queue_builder_t_run(
             * Deal with a single element run at the very tail of the input *
             * array range.                                                 *
             ***************************************************************/
-            if (cmp(*(last - element_size), *last) <= 0)
+            if (cmp(last - element_size, run_queue_builder->last) <= 0)
             {
                 run_queue_t_add_to_last_run(run_queue_builder->run_queue,
                                             element_size);
@@ -374,14 +404,15 @@ static run_queue* run_queue_builder_t_run(
             else
             {
                 run_queue_t_enqueue(
-                        run_queue_builder->run_queue,
-                        run_t_alloc(run_queue_builder->left,
-                                    run_queue_builder->left + element_size));
+                                    run_queue_builder->run_queue,
+                                    run_t_alloc(run_queue_builder->left,
+                                                run_queue_builder->left + element_size));
             }
         }
-        
-        return run_queue_builder->run_queue;
     }
+    
+    super(run_queue_builder->run_queue, run_queue_builder->element_size);
+    return run_queue_builder->run_queue;
 }
 
 void adaptive_mergesort(void* base,
@@ -389,5 +420,9 @@ void adaptive_mergesort(void* base,
                         size_t size,
                         int (*compar)(const void*, const void*))
 {
-    
+    run_queue_builder_t* run_queue_builder = run_queue_builder_t_alloc(base,
+                                                                       size,
+                                                                       num,
+                                                                       compar);
+    run_queue_builder_t_run(run_queue_builder);
 }
