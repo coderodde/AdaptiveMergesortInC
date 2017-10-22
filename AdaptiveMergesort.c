@@ -1,4 +1,8 @@
+<<<<<<< HEAD:AdaptiveMergesort.c
 #include "net/coderodde/util/AdaptiveMergesort.h"
+=======
+#include "AdaptiveMergesort.h"
+>>>>>>> 376ef86de6b2dc3fa888fbd034ac3a012f6335d8:net/coderodde/util/AdaptiveMergesort.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -409,10 +413,35 @@ static run_queue_t* run_queue_builder_t_run(
                                                 run_queue_builder->left + element_size));
             }
         }
+<<<<<<< HEAD:AdaptiveMergesort.c
+=======
+        super(run_queue_builder->run_queue, run_queue_builder->element_size);
+        return run_queue_builder->run_queue;
+>>>>>>> 376ef86de6b2dc3fa888fbd034ac3a012f6335d8:net/coderodde/util/AdaptiveMergesort.c
     }
     
     super(run_queue_builder->run_queue, run_queue_builder->element_size);
     return run_queue_builder->run_queue;
+}
+
+void super(run_queue_t* run_queue, size_t element_size)
+{
+    run_t* run;
+    interval_t* interval;
+    void* shit;
+    
+    while (run_queue_t_size(run_queue) > 0)
+    {
+        run = run_queue_t_dequeue(run_queue);
+        interval = run->first_interval;
+        
+        for (shit = interval->begin, shit < interval->end; shit += element_size)
+        {
+            printf("%d ", *shit);
+        }
+        
+        puts("");
+    }
 }
 
 void adaptive_mergesort(void* base,
@@ -423,6 +452,10 @@ void adaptive_mergesort(void* base,
     run_queue_builder_t* run_queue_builder = run_queue_builder_t_alloc(base,
                                                                        size,
                                                                        num,
+<<<<<<< HEAD:AdaptiveMergesort.c
                                                                        compar);
+=======
+                                                                       my_cmp);
+>>>>>>> 376ef86de6b2dc3fa888fbd034ac3a012f6335d8:net/coderodde/util/AdaptiveMergesort.c
     run_queue_builder_t_run(run_queue_builder);
 }
