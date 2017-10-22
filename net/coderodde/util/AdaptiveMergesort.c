@@ -1,4 +1,5 @@
 #include "AdaptiveMergesort.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -264,6 +265,10 @@ static void run_queue_builder_t_scan_ascending_run(
     run_queue_builder->right = right;
 }
 
+/**************************************************************************
+* Reverses a strictly descending run into an ascending one. Strictness is *
+* required in order to keep the entire sorting algorithm stable.          *
+**************************************************************************/
 static void run_queue_builder_t_reverse_run(
                             run_queue_builder_t* run_queue_builder,
                             run_t* run)
@@ -379,8 +384,28 @@ static run_queue* run_queue_builder_t_run(
                                     run_queue_builder->left + element_size));
             }
         }
-        
+        super(run_queue_builder->run_queue, run_queue_builder->element_size);
         return run_queue_builder->run_queue;
+    }
+}
+
+void super(run_queue_t* run_queue, size_t element_size)
+{
+    run_t* run;
+    interval_t* interval;
+    void* shit;
+    
+    while (run_queue_t_size(run_queue) > 0)
+    {
+        run = run_queue_t_dequeue(run_queue);
+        interval = run->first_interval;
+        
+        for (shit = interval->begin, shit < interval->end; shit += element_size)
+        {
+            printf("%d ", *shit);
+        }
+        
+        puts("");
     }
 }
 
@@ -389,5 +414,9 @@ void adaptive_mergesort(void* base,
                         size_t size,
                         int (*compar)(const void*, const void*))
 {
-    
+    run_queue_builder_t* run_queue_builder = run_queue_builder_t_alloc(base,
+                                                                       size,
+                                                                       num,
+                                                                       my_cmp);
+    run_queue_builder_t_run(run_queue_builder);
 }
