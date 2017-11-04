@@ -1,18 +1,10 @@
-//
-//  main.c
-//  AdaptiveMergesortInC
-//
-//  Created by Rodion Efremov on 20/10/2017.
-//  Copyright © 2017 coderodde.net. All rights reserved.
-//
-
 #include "net/coderodde/util/AdaptiveMergesort.h"
 #include <stdio.h>
 
 int my_cmp(const void* a, const void* b)
 {
-    int aa = *((int*)(a));
-    int bb = *((int*)(b));
+    int aa = *(int*)((void*)a);
+    int bb = *(int*)((void*)b);
     int cmp = aa - bb;
     
     if (cmp)
@@ -20,7 +12,7 @@ int my_cmp(const void* a, const void* b)
         return cmp;
     }
     
-    return a < b ? -1 : (a > b ? 1 : 0);
+    return (int)(a - b);
 }
 
 int main(int argc, const char * argv[]) {
@@ -31,7 +23,7 @@ int main(int argc, const char * argv[]) {
     int* a5 = malloc(sizeof(int)); *a5 = 5;
     
     int* arr[] = { a2, a3, a1, a2, a5, a4 };
-    
-    adaptive_mergesort(arr, 6, sizeof(int), my_cmp);
+    int arr2[] = { 2, 3, 1, 2, 5, 4 };
+    adaptive_mergesort(arr2, 6, sizeof(int), my_cmp);
     return 0;
 }
