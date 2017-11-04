@@ -244,8 +244,7 @@ static void run_queue_builder_t_scan_ascending_run(
     {
         if (cmp(head - element_size, head) <= 0)
         {
-            run_queue_t_add_to_last_run(run_queue,
-                                        (right - head) * element_size);
+            run_queue_t_add_to_last_run(run_queue, right - head);
         }
         else
         {
@@ -276,7 +275,7 @@ static void run_queue_builder_t_reverse_run(
     size_t element_size = run_queue_builder->element_size;
     void* end = run->first_interval->end - element_size;
     void* begin = run->first_interval->begin;
-    void* aux = run_queue_builder->base;
+    void* aux = run_queue_builder->aux;
     
     while (begin < end)
     {
@@ -316,8 +315,7 @@ static void run_queue_builder_t_scan_descending_run(
     {
         if (cmp(head - element_size, head) <= 0)
         {
-            run_queue_t_add_to_last_run(run_queue,
-                                        (right - head) * element_size);
+            run_queue_t_add_to_last_run(run_queue, right - head);
         }
         else
         {
@@ -352,7 +350,7 @@ void super(run_queue_t* run_queue, size_t element_size)
         
         for (shit = interval->begin; shit < interval->end; shit += element_size)
         {
-            printf("%d ", *((int*)(shit)));
+            printf("%d ", **((int**)(shit)));
         }
         
         puts("");
@@ -403,9 +401,9 @@ static run_queue_t* run_queue_builder_t_run(
         else
         {
             run_queue_t_enqueue(
-                                run_queue_builder->run_queue,
-                                run_t_alloc(run_queue_builder->left,
-                                            run_queue_builder->left + element_size));
+                        run_queue_builder->run_queue,
+                        run_t_alloc(run_queue_builder->left,
+                                    run_queue_builder->left + element_size));
         }
     }
     
