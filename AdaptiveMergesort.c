@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
 /*****************************************************************************
 * This interval encodes an ascending contiguous sequence in the input array. *
 * The array from, from + 1, ..., to - 2, to - 1 is an ascending sorted       *
@@ -411,14 +413,143 @@ static run_queue_t* run_queue_builder_t_run(
     return run_queue_builder->run_queue;
 }
 
+/*******************************************************************************
+* Returns the pointer to the first element in the range which compares greater *
+* than 'value'.                                                                *
+*******************************************************************************/
+static void* upper_bound(void* base,
+                         size_t num,
+                         size_t size,
+                         void* value,
+                         int (*cmp)(const void*, const void*))
+{
+    size_t count = num;
+    size_t step;
+    void* it;
+    
+    while (count)
+    {
+        it = base;
+        step = count >> 1;
+        it += step * size;
+        
+        if (cmp(it, value) <= 0)
+        {
+            base = it + size;
+            count -= step + 1;
+        }
+        else
+        {
+            count = step;
+        }
+    }
+    
+    return base;
+    
+}
+                        
+/*******************************************************************************
+* Returns the pointer to the first element in the range which does not compare *
+* less than 'value'.                                                           *
+*******************************************************************************/
+static void* lower_bound(void* base,
+                         size_t num,
+                         size_t size,
+                         void* value,
+                         int (*cmp)(const void*, const void*))
+{
+    size_t count = num;
+    size_t step;
+    void* it;
+    
+    while (count)
+    {
+        it = base;
+        step = count >> 1;
+        it += step * size;
+        
+        if (cmp(it, value) < 0)
+        {
+            base = it + size;
+            count -= step + 1;
+        }
+        else
+        {
+            count = step;
+        }
+    }
+    
+    return base;
+}
+
+static void* find_upper_bound(void* base,
+                              size_t num,
+                              size_t size,
+                              void* value,
+                              int (*cmp)(const void*, const void*))
+{
+    size_t bound = 1;
+    
+    while (bound < num && cmp(base + bound * size, value) < 0) {
+        bound <<= 1;
+    }
+    
+    return upper_bound(base + (bound >> 1) * size,
+                       MIN(bound, num),
+                       size,
+                       value,
+                       cmp);
+}
+
+static void* find_lower_bound(void* base,
+                              size_t num,
+                              size_t size,
+                              void* value,
+                              int (*cmp)(const void*, const void*))
+{
+    size_t bound = 1;
+    
+    while (bound < num && cmp(base + bound * size, value) < 0) {
+        bound <<= 1;
+    }
+    
+    return lower_bound(base + (bound >> 1) * size,
+                       MIN(bound, num),
+                       size,
+                       value,
+                       cmp);
+}
+
 void adaptive_mergesort(void* base,
                         size_t num,
                         size_t size,
                         int (*compar)(const void*, const void*))
 {
+    void* aux = malloc(num * size);
+    memcpy(aux, base, num * size);
+    size_t runs_left;
     run_queue_builder_t* run_queue_builder = run_queue_builder_t_alloc(base,
                                                                        num,
                                                                        size,
                                                                        compar);
     run_queue_t* run_queue = run_queue_builder_t_run(run_queue_builder);
+    runs_left = run_queue_t_size(run_queue);
+    
+    while (run_queue_t_size(run_queue) > 1)
+    {
+        switch (runs_left)
+        {
+            case 1:
+                run_queue_t_enqueue(run_queue, run_queue_t_dequeue(run_queue));
+                /****************
+                * FAll through! *
+                ****************/
+                
+            case 0:
+                runs_left = run_queue_t_size(run_queue);
+                continue;
+        }
+        
+        
+    }
 }
