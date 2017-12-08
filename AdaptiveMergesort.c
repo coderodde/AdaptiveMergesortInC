@@ -520,18 +520,188 @@ static void* find_lower_bound(void* base,
                        cmp);
 }
 
+static run_t* merge(void* aux,
+                    size_t size,
+                    run_t* run1,
+                    run_t* run2,
+                    int (*cmp)(const void*, const void*))
+{
+    interval_t* head_interval_1 = run1->first_interval;
+    interval_t* head_interval_2 = run2->first_interval;
+    interval_t* merged_run_head = NULL;
+    interval_t* merged_run_tail = NULL;
+    
+    void* head1;
+    void* head2;
+    void* tail1;
+    void* tail2;
+    void* cursor;
+    
+    size_t interval_length;
+    interval_t* new_interval;
+    interval_t* tmp_interval;
+    interval_t* next_interval;
+    
+    while (head_interval_1 && head_interval_2)
+    {
+        head1 = head_interval_1->begin;
+        head2 = head_interval_2->begin;
+        
+        if (cmp(head1, head2) <= 0)
+        {
+            tail1 = head_interval_1->end - size;
+            
+            if (cmp(tail1, head2) <= 0)
+            {
+                /*************************************************************
+                * Easy case, just append the right interval to the left one. *
+                *************************************************************/
+                if (merged_run_head == NULL)
+                {
+                    merged_run_head = head_interval_1;
+                    merged_run_tail = head_interval_1;
+                }
+                else
+                {
+                    merged_run_tail->next = head_interval_1;
+                    head_interval_1->prev = merged_run_tail;
+                    merged_run_tail = head_interval_1;
+                }
+                
+                head_interval_1 = head_interval_1->next;
+                continue;
+            }
+            
+            /************************************************************
+            * Cannot simply append. We need to split the left interval. *
+            ************************************************************/
+            interval_length = (head_interval_1->end - head_interval_1->begin)
+                            / size;
+            
+            cursor = find_upper_bound(head_interval_1->begin,
+                                      interval_length,
+                                      size,
+                                      head2,
+                                      cmp);
+                                      
+            new_interval = malloc(sizeof *new_interval);
+            new_interval->begin = head_interval_1->begin;
+            new_interval->end = cursor;
+            head_interval_1->begin = cursor;
+            
+            /***********************************************************
+            * Append the split interval to the tail of the merged run. *
+            ***********************************************************/
+            if (merged_run_head == NULL)
+            {
+                merged_run_head = new_interval;
+                merged_run_tail = new_interval;
+                new_interval->prev = NULL;
+                new_interval->next = NULL;
+            }
+            else
+            {
+                merged_run_tail->next = new_interval;
+                new_interval->prev = merged_run_tail;
+                new_interval->next = NULL;
+                merged_run_tail = new_interval;
+            }
+        }
+        else
+        {
+            tail2 = head_interval_2->end - size;
+            
+            if (cmp(tail2, head1) < 0)
+            {
+                /**************************************************************
+                * Easy case, just prepend the right interval to the beginning *
+                * of the left interval.                                       *
+                **************************************************************/
+                if (merged_run_head == NULL)
+                {
+                    merged_run_head = head_interval_2;
+                    merged_run_tail = head_interval_2;
+                }
+                else
+                {
+                    merged_run_tail->next = head_interval_2;
+                    head_interval_2->prev = merged_run_tail;
+                    merged_run_tail = head_interval_2;
+                }
+                
+                head_interval_2  = head_interval_2->next;
+                continue;
+            }
+            
+            /*************************************************************
+            * Cannot simply append. We need to split the right interval. *
+            *************************************************************/
+            interval_length = (head_interval_2->end - head_interval_2->begin)
+                            / size;
+            
+            cursor = find_lower_bound(head_interval_2->begin,
+                                      interval_length,
+                                      size,
+                                      head1,
+                                      cmp);
+            
+            new_interval = malloc(sizeof *new_interval);
+            new_interval->begin = head_interval_2->begin;
+            new_interval->end = cursor;
+            head_interval_2->begin = cursor;
+            
+            if (merged_run_head == NULL)
+            {
+                merged_run_head = new_interval;
+                merged_run_tail = new_interval;
+                new_interval->prev = NULL;
+                new_interval->next = NULL;
+            }
+            else
+            {
+                merged_run_tail->next = new_interval;
+                new_interval->prev = merged_run_tail;
+                new_interval->next = NULL;
+                merged_run_tail = new_interval;
+            }
+        }
+    }
+    
+    merged_run_tail->next = head_interval_1 ? head_interval_1 : head_interval_2;
+    merged_run_tail->next->prev = merged_run_tail;
+    merged_run_tail = merged_run_tail->next;
+    
+    run1->first_interval = merged_run_head;
+    run1->last_interval = merged_run_tail;
+    
+    for (tmp_interval = run2->first_interval; tmp_interval;)
+    {
+        next_interval = tmp_interval->next;
+        free(next_interval);
+        tmp_interval = next_interval;
+    }
+    
+    free(run2);
+    return run1;
+}
+
 void adaptive_mergesort(void* base,
                         size_t num,
                         size_t size,
-                        int (*compar)(const void*, const void*))
+                        int (*cmp)(const void*, const void*))
 {
+    interval_t* interval;
+    void* cursor;
     void* aux = malloc(num * size);
     memcpy(aux, base, num * size);
     size_t runs_left;
-    run_queue_builder_t* run_queue_builder = run_queue_builder_t_alloc(base,
+    run_t* run1;
+    run_t* run2;
+    run_t* merged_run;
+    run_queue_builder_t* run_queue_builder = run_queue_builder_t_alloc(aux,
                                                                        num,
                                                                        size,
-                                                                       compar);
+                                                                       cmp);
     run_queue_t* run_queue = run_queue_builder_t_run(run_queue_builder);
     runs_left = run_queue_t_size(run_queue);
     
@@ -550,6 +720,21 @@ void adaptive_mergesort(void* base,
                 continue;
         }
         
-        
+        run1 = run_queue_t_dequeue(run_queue);
+        run2 = run_queue_t_dequeue(run_queue);
+        merged_run = merge(aux, size, run1, run2, cmp);
+        run_queue_t_enqueue(run_queue, merged_run);
+        runs_left -= 2;
+    }
+    
+    for (interval = run_queue_t_dequeue(run_queue)->first_interval;
+         interval;
+         interval = interval->next)
+    {
+        for (cursor = interval->begin; cursor != interval->end; ++cursor)
+        {
+            base = cursor;
+            base += size;
+        }
     }
 }
